@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jahresende-Countdown &amp; Wetter</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7;
+    --text: #1a1a1a;
+    --muted: #6b7280;
+    --accent: #d64545;
+    --accent-hover: #b83636;
+    --rain: #2f6fdb;
+    --card-bg: #ffffff;
+    --shadow: rgba(0, 0, 0, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --text: #f0f0f0;
+      --muted: #9aa0a8;
+      --accent: #e2574c;
+      --accent-hover: #ff6f61;
+      --rain: #5b9bff;
+      --card-bg: #1f2229;
+      --shadow: rgba(0, 0, 0, 0.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px;
+  }
+  button#countdown-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 28px 44px;
+    border: none;
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px var(--shadow);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button#countdown-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px var(--shadow);
+  }
+  button#countdown-btn:active {
+    transform: translateY(0);
+  }
+  .label {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .value {
+    font-size: 40px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .unit {
+    font-size: 16px;
+    font-weight: 400;
+    opacity: 0.7;
+    margin-left: 4px;
+    margin-right: 10px;
+  }
+  #weather-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 22px 40px;
+    border-radius: 16px;
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px var(--shadow);
+    min-width: 220px;
+  }
+  .weather-label {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rain);
+    font-weight: 600;
+  }
+  .weather-value {
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .weather-detail {
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<button id="countdown-btn" type="button" aria-live="polite">
+  <span class="label">Bis Jahresende</span>
+  <span class="value">
+    <span id="days">--</span><span class="unit">Tage</span><span id="hours">--</span><span class="unit">Std.</span><span id="minutes">--</span><span class="unit">Min.</span>
+  </span>
+</button>
+
+<div id="weather-card">
+  <span class="weather-label">Regen heute in Düsseldorf</span>
+  <span class="weather-value"><span id="weather-icon">⏳</span><span id="weather-text">lädt…</span></span>
+  <span class="weather-detail" id="weather-detail"></span>
+</div>
+
+<script>
+  function updateCountdown() {
+    const now = new Date();
+    const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    let diffMs = endOfYear - now;
+    if (diffMs < 0) diffMs = 0;
+
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    document.getElementById('days').textContent = days;
+    document.getElementById('hours').textContent = hours;
+    document.getElementById('minutes').textContent = minutes;
+  }
+
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+
+  document.getElementById('countdown-btn').addEventListener('click', updateCountdown);
+
+  // Düsseldorf: 51.2277 N, 6.7735 E
+  const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=51.2277&longitude=6.7735&daily=precipitation_sum,weather_code&timezone=Europe%2FBerlin&forecast_days=1';
+
+  const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]);
+
+  async function loadWeather() {
+    const iconEl = document.getElementById('weather-icon');
+    const textEl = document.getElementById('weather-text');
+    const detailEl = document.getElementById('weather-detail');
+    try {
+      const res = await fetch(WEATHER_URL);
+      if (!res.ok) throw new Error('Wetterdienst nicht erreichbar');
+      const data = await res.json();
+      const code = data.daily.weather_code[0];
+      const precipitation = data.daily.precipitation_sum[0];
+      const willRain = RAIN_CODES.has(code) || precipitation > 0;
+
+      iconEl.textContent = willRain ? '🌧️' : '☀️';
+      textEl.textContent = willRain ? 'Ja, es regnet' : 'Nein, kein Regen';
+      detailEl.textContent = `Niederschlag: ${precipitation.toFixed(1)} mm`;
+    } catch (err) {
+      iconEl.textContent = '⚠️';
+      textEl.textContent = 'Nicht verfügbar';
+      detailEl.textContent = 'Wetterdaten konnten nicht geladen werden';
+    }
+  }
+
+  loadWeather();
+</script>
+
+</body>
+</html>
